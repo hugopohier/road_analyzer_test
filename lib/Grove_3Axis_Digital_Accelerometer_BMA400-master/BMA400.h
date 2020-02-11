@@ -198,7 +198,7 @@ class BMA400
         
         bool isConnection(void);
         
-        void initialize(void);
+        void initialize(power_type_t pwr_mode, scale_type_t sens, odr_type_t odr);
 
         void setPoweMode(power_type_t mode);
         void setFullScaleRange(scale_type_t range);

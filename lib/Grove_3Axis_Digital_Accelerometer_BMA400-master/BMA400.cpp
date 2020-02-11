@@ -35,11 +35,19 @@ BMA400::BMA400(uint8_t SDA_pin, uint8_t SCL_pin)
     devAddr = BMA400_ADDRESS;
 }
 
-void BMA400::initialize(void)
+void BMA400::initialize(power_type_t pwr_mode, scale_type_t sens, odr_type_t odr)
 {
-    setPoweMode(NORMAL);    
-    setFullScaleRange(RANGE_4G);
-    setOutputDataRate(ODR_200);
+    setPoweMode(pwr_mode);    
+    setFullScaleRange(sens);
+
+    if(NORMAL == pwr_mode)
+    {
+        setOutputDataRate(ODR_25);
+    }
+    else
+    {
+        setOutputDataRate(odr);
+    }
 }
 
 bool BMA400::isConnection(void)

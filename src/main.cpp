@@ -2,37 +2,49 @@
 #include <Adafruit_GPS.h>
 #include <BMA400.h>
 
+#define GNSS
+#define ACCELEROMETER
+#undef POWER_CHECKING
+
 /****************** Pinout ******************/
 #define COM_PB_PIN 34
 #define SENS_SW_PIN 35
 
-#define PWR_CHECK_PIN 33
+#ifdef POWER_CHECKING
+    #define PWR_CHECK_PIN 33
+#endif
 
 #define RED_LED_PIN 25
 #define GREEN_LED_PIN 26
 #define BLUE_LED_PIN 27
 
-#define ACC_SDA 21
-#define ACC_SCL 22
-#define ACC_INT1 4
-#define ACC_INT2 2
+#ifdef ACCELEROMETER
+    #define ACC_SDA 21
+    #define ACC_SCL 22
+    #define ACC_INT1 4
+    #define ACC_INT2 2
+#endif
 
-#define GNSS_EN  17
-#define GNSS_FIX 16
+#ifdef GNSS
+    #define GPSSerial Serial2
+    #define GNSS_EN  17
+    #define GNSS_FIX 16
+#endif
 
 /****************** Global defines ******************/
 //Analog value of the critical battery level
-#define BATTERY_CRITICAL_LEVEL 2300
-
-//Serial port name
-#define GPSSerial Serial2
+#define BATTERY_CRITICAL_LEVEL 1800
 
 /****************** Global variables ******************/
+#ifdef GNSS
 //Connect to the GPS on the hardware port
 Adafruit_GPS GPS(&GPSSerial);
+#endif
 
+#ifdef ACCELEROMETER
 //Connect the BMA400 through the I2C pins
 BMA400 ACC(ACC_SDA, ACC_SCL);
+#endif
 
 uint8_t PB_pushed = 0;
 uint8_t SW_changed = 0;
@@ -44,31 +56,42 @@ float ACC_X = 0, ACC_Y = 0, ACC_Z = 0;
 
 uint32_t timer = millis();
 
+int test = 0;
+
 /****************** Push-Button Interrupt ******************/
 void IRAM_ATTR COM_PB_handler() {
     PB_pushed++;
+    detachInterrupt(COM_PB_PIN);
 }
 
 /****************** Switch Interrupt ******************/
 void IRAM_ATTR SENS_SW_handler() {
     SW_changed++;
+    detachInterrupt(SENS_SW_PIN);
 }
 
 /****************** Setup ******************/
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     Serial.println("----- Setup -----");
 
-    pinMode(COM_PB_PIN, INPUT_PULLUP);
-    pinMode(SENS_SW_PIN, INPUT_PULLUP);
+    pinMode(COM_PB_PIN, INPUT);
+    pinMode(SENS_SW_PIN, INPUT);
     
-    pinMode(RED_LED_PIN, OUTPUT_OPEN_DRAIN);
-    pinMode(GREEN_LED_PIN, OUTPUT_OPEN_DRAIN);
-    pinMode(BLUE_LED_PIN, OUTPUT_OPEN_DRAIN);
+    pinMode(RED_LED_PIN, OUTPUT);
+    pinMode(GREEN_LED_PIN, OUTPUT);
+    pinMode(BLUE_LED_PIN, OUTPUT);
+
+    digitalWrite(RED_LED_PIN, 0);
+    digitalWrite(GREEN_LED_PIN, 0);
+    digitalWrite(BLUE_LED_PIN, 0);
+
+    ACC_SENS = (digitalRead(SENS_SW_PIN)*2) + 2;
 
     attachInterrupt(digitalPinToInterrupt(COM_PB_PIN), COM_PB_handler, FALLING);
     attachInterrupt(digitalPinToInterrupt(SENS_SW_PIN), SENS_SW_handler, CHANGE);
 
+#ifdef GNSS
     //Init of the GPS component
     GPS.begin(9600);
 
@@ -85,6 +108,19 @@ void setup() {
 
     //Ask for firmware version
     GPSSerial.println(PMTK_Q_RELEASE);
+#endif
+
+#ifdef ACCELEROMETER
+    //Initialization of the accelerometer BMA400
+    while(!ACC.isConnection())
+    {
+        Serial.println("BMA400 is not connected");
+        delay(2000);
+    }
+
+    ACC.initialize(NORMAL, RANGE_2G, ODR_12);
+    Serial.println("BMA400 is connected");
+#endif
 
     Serial.println("----- Loop -----");
 }
@@ -93,54 +129,79 @@ void setup() {
 void loop() {
     if(PB_pushed > 0)
     {
-      PB_pushed = 0;
-      RGB_color++;
+        Serial.println(PB_pushed);
+        PB_pushed = 0;
+        RGB_color++;
 
-      if(1 == RGB_color)
-      {
-          digitalWrite(RED_LED_PIN, 255);
-          digitalWrite(GREEN_LED_PIN, 0);
-          digitalWrite(BLUE_LED_PIN, 0);
-      }
-      else if(2 == RGB_color)
-      {
-          digitalWrite(RED_LED_PIN, 0);
-          digitalWrite(GREEN_LED_PIN, 255);
-          digitalWrite(BLUE_LED_PIN, 0);
-      }
-      else if(3 == RGB_color)
-      {
-          digitalWrite(RED_LED_PIN, 0);
-          digitalWrite(GREEN_LED_PIN, 0);
-          digitalWrite(BLUE_LED_PIN, 255);
-      }
-      else
-      {
-          RGB_color = 0;
-          digitalWrite(RED_LED_PIN, 0);
-          digitalWrite(GREEN_LED_PIN, 0);
-          digitalWrite(BLUE_LED_PIN, 0);
-      }
+        if(1 == RGB_color)
+        {
+            digitalWrite(RED_LED_PIN, 1);
+            digitalWrite(GREEN_LED_PIN, 1);
+            digitalWrite(BLUE_LED_PIN, 1);
+        }
+        else if(2 == RGB_color)
+        {
+            digitalWrite(RED_LED_PIN, 0);
+            digitalWrite(GREEN_LED_PIN, 1);
+            digitalWrite(BLUE_LED_PIN, 0);
+        }
+        else if(3 == RGB_color)
+        {
+            digitalWrite(RED_LED_PIN, 0);
+            digitalWrite(GREEN_LED_PIN, 0);
+            digitalWrite(BLUE_LED_PIN, 1);
+        }
+        else
+        {
+            RGB_color = 0;
+            digitalWrite(RED_LED_PIN, 0);
+            digitalWrite(GREEN_LED_PIN, 0);
+            digitalWrite(BLUE_LED_PIN, 0);
+        }
+
+        attachInterrupt(digitalPinToInterrupt(COM_PB_PIN), COM_PB_handler, FALLING);
     }
 
     if(SW_changed > 0)
     {
         SW_changed = 0;
 
+        Serial.print("Test : ");
+        Serial.println(test);
+
         if(2 == ACC_SENS)
         {
             ACC_SENS = 4;
+
+            #ifdef ACCELEROMETER
+                ACC.setFullScaleRange(RANGE_4G);
+            #endif
+
+            digitalWrite(RED_LED_PIN, 1);
+            digitalWrite(GREEN_LED_PIN, 0);
+            digitalWrite(BLUE_LED_PIN, 1);
         }
         else
         {
             ACC_SENS = 2;
+
+            #ifdef ACCELEROMETER
+                ACC.setFullScaleRange(RANGE_2G);
+            #endif
+
+            digitalWrite(RED_LED_PIN, 1);
+            digitalWrite(GREEN_LED_PIN, 1);
+            digitalWrite(BLUE_LED_PIN, 0);
         }
+
+        attachInterrupt(digitalPinToInterrupt(SENS_SW_PIN), SENS_SW_handler, CHANGE);
     }
 
-    if (millis() - timer > 2000) {
+    if (millis() - timer > 1000) {
       // Reset the timer
       timer = millis();
 
+#ifdef GNSS
       // Read data from the GPS
       GPS.read();
 
@@ -148,21 +209,33 @@ void loop() {
       if (GPS.newNMEAreceived()) {
         Serial.println(GPS.lastNMEA());
       }
+#endif
 
+#ifdef ACCELEROMETER
       ACC.getAcceleration(&ACC_X, &ACC_Y, &ACC_Z);
 
-      Serial.println(ACC_X);
+      Serial.print(ACC_X);
       Serial.print(",");
       Serial.print(ACC_Y);
       Serial.print(",");
-      Serial.print(ACC_Z);
+      Serial.println(ACC_Z);
+#endif
 
+#ifdef POWER_CHECKING
       //If battery reach the critical level (25%) ==> Change the LED color
       if(BATTERY_CRITICAL_LEVEL > analogRead(PWR_CHECK_PIN))
       {
-          digitalWrite(RED_LED_PIN, 255);
-          digitalWrite(GREEN_LED_PIN, 255);
-          digitalWrite(BLUE_LED_PIN, 255);
+          digitalWrite(RED_LED_PIN, 1);
+          digitalWrite(GREEN_LED_PIN, 1);
+          digitalWrite(BLUE_LED_PIN, 1);
       }
+      else
+      {
+          digitalWrite(RED_LED_PIN, 0);
+          digitalWrite(GREEN_LED_PIN, 1);
+          digitalWrite(BLUE_LED_PIN, 1);
+      }
+#endif
+
     }
 }
