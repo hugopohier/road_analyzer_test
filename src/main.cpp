@@ -217,6 +217,7 @@ void loop() {
             Serial.print(ACC_Y);
             Serial.print(",");
             Serial.println(ACC_Z);
+            Serial.println();
         #endif
 
         #ifdef POWER_CHECKING
